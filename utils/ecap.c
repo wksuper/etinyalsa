@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 
 	struct epcm_config econfig;
 	memset(&econfig, 0, sizeof(econfig));
-	econfig.ram_millisec = 10/*seconds*/ * 1000;
+	econfig.ram_millisecs = 10/*seconds*/ * 1000;
 
 	struct pcm_config config;
 	memset(&config, 0, sizeof(config));

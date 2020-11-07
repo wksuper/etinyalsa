@@ -23,17 +23,13 @@
 #include <easoundlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "queue.h"
 
 struct epcm {
 	struct pcm *pcm;
 
 	/* extention */
-	char *ram;
-	size_t ram_size;
-	size_t r_pos;
-	size_t w_pos;
-	pthread_mutex_t mutex_for_w_pos;
-	pthread_cond_t cond;
+	struct queue q;
 	pthread_t tid;
 	int stop;
 };
@@ -43,53 +39,26 @@ struct pcm *epcm_base(struct epcm *epcm)
 	return epcm->pcm;
 }
 
-static size_t ram_get_read_available(struct epcm *epcm)
-{
-	return (epcm->w_pos >= epcm->r_pos)
-	       ? (epcm->w_pos - epcm->r_pos)
-	       : (epcm->ram_size - epcm->r_pos + epcm->w_pos);
-}
-
 static void *pcm_streaming_thread(void *data)
 {
 	KLOGD("%s() enter\n", __FUNCTION__);
 
 	struct epcm *epcm = (struct epcm *)data;
-	const size_t tmp_size = pcm_frames_to_bytes(epcm->pcm, pcm_get_buffer_size(epcm->pcm));
-	char *tmp = (char *)malloc(tmp_size);
+	struct pcm *pcm = epcm->pcm;
+	const size_t bytes = pcm_frames_to_bytes(pcm, pcm_get_buffer_size(pcm));
+	char *buf = (char *)malloc(bytes);
 
 	while (!epcm->stop) {
-		if (pcm_read(epcm->pcm, tmp, tmp_size) != 0) {
-			KLOGE("Error to pcm_read(%u bytes)\n", tmp_size);
+		if (pcm_read(pcm, buf, bytes) != 0) {
+			KLOGE("Error to pcm_read(%u bytes)\n", bytes);
 			continue;
 		}
-		size_t w = epcm->w_pos;
-		char *p = tmp;
-		size_t size = tmp_size;
-		while (size) {
-			size_t bytes_to_end = epcm->ram_size - w;
-			if (size < bytes_to_end) {
-				memcpy(epcm->ram + w, p, size);
-				w += size;
-				size = 0;
-			} else {
-				memcpy(epcm->ram + w, p, bytes_to_end);
-				p += bytes_to_end;
-				w = 0;
-				size -= bytes_to_end;
-			}
+		if (queue_write(&epcm->q, buf, bytes) != 0) {
+			KLOGE("Error to queue_write(%u bytes)\n", bytes);
 		}
-
-		pthread_mutex_lock(&epcm->mutex_for_w_pos);
-		epcm->w_pos = w;
-		size_t read_available = ram_get_read_available(epcm);
-		KLOGV("write  to queue: %u bytes, queue status: [%10u / %10u] %3u%%\n",
-		      tmp_size, read_available, epcm->ram_size, read_available * 100 / epcm->ram_size);
-		pthread_cond_signal(&epcm->cond);
-		pthread_mutex_unlock(&epcm->mutex_for_w_pos);
 	}
 
-	free(tmp);
+	free(buf);
 	KLOGD("%s() leave\n", __FUNCTION__);
 	return NULL;
 }
@@ -102,6 +71,7 @@ struct epcm *epcm_open(unsigned int card,
 {
 	KLOGD("%s() enter\n", __FUNCTION__);
 
+	struct queue *q = NULL;
 	struct epcm *epcm = (struct epcm *)calloc(1, sizeof(struct epcm));
 	if (!epcm)
 		goto error;
@@ -119,20 +89,22 @@ struct epcm *epcm_open(unsigned int card,
 		goto error;
 	}
 
-	if (econfig->ram_millisec) {
-		epcm->ram_size = pcm_frames_to_bytes(epcm->pcm,
-		                                     pcm_get_rate(epcm->pcm) * econfig->ram_millisec / 1000);
-		KLOGD("ram_size=%u\n", epcm->ram_size);
-		epcm->ram = (char *)malloc(epcm->ram_size);
-		if (!epcm->ram) {
+	q = &epcm->q;
+
+	if (econfig->ram_millisecs) {
+		q->ram_size = pcm_frames_to_bytes(epcm->pcm,
+		                                  pcm_get_rate(epcm->pcm) * econfig->ram_millisecs / 1000);
+		KLOGD("ram_size=%u\n", q->ram_size);
+		q->ram = (char *)malloc(q->ram_size);
+		if (!q->ram) {
 			KLOGE("Failed to alloc memory\n");
-			epcm->ram_size = 0;
+			q->ram_size = 0;
 		} else {
-			epcm->r_pos = epcm->w_pos = 0;
+			q->r_pos = q->w_pos = 0;
 			epcm->stop = 0;
 
-			pthread_mutex_init(&epcm->mutex_for_w_pos, (const pthread_mutexattr_t *)NULL);
-			pthread_cond_init(&epcm->cond, (const pthread_condattr_t *)NULL);
+			pthread_mutex_init(&q->mutex_for_w_pos, (const pthread_mutexattr_t *)NULL);
+			pthread_cond_init(&q->cond, (const pthread_condattr_t *)NULL);
 
 			if (pthread_create(&epcm->tid, NULL, pcm_streaming_thread, epcm)) {
 				KLOGE("Failed to create pcm_streaming_thread\n");
@@ -140,8 +112,8 @@ struct epcm *epcm_open(unsigned int card,
 			}
 		}
 	} else {
-		epcm->ram = NULL;
-		epcm->ram_size = 0;
+		q->ram = NULL;
+		q->ram_size = 0;
 	}
 
 	KLOGD("%s() leave\n", __FUNCTION__);
@@ -153,48 +125,11 @@ error:
 	return NULL;
 }
 
-static int read_from_queue(struct epcm *epcm, void *data, unsigned int count)
-{
-	char *dest = (char *)data;
-	const size_t requested_bytes = count;
-	size_t read_available = 0;
-
-	while (count) {
-		pthread_mutex_lock(&epcm->mutex_for_w_pos);
-		while ((read_available = ram_get_read_available(epcm)) == 0) {
-			pthread_cond_wait(&epcm->cond, &epcm->mutex_for_w_pos);
-		}
-		pthread_mutex_unlock(&epcm->mutex_for_w_pos);
-
-		const size_t actual_read = (count < read_available ? count : read_available);
-		size_t left = actual_read;
-		while (left) {
-			size_t bytes_to_end = epcm->ram_size - epcm->r_pos;
-			if (left < bytes_to_end) {
-				memcpy(dest, epcm->ram + epcm->r_pos, left);
-				dest += left;
-				epcm->r_pos += left;
-				left = 0;
-			} else {
-				memcpy(dest, epcm->ram + epcm->r_pos, bytes_to_end);
-				dest += bytes_to_end;
-				epcm->r_pos = 0;
-				left -= bytes_to_end;
-			}
-		}
-		count -= actual_read;
-	}
-	const size_t total_read = dest - (char *)data;
-	read_available = ram_get_read_available(epcm);
-	KLOGV("read from queue: %u bytes, queue status: [%10u / %10u] %3u%%\n",
-	      total_read, read_available, epcm->ram_size, read_available * 100 / epcm->ram_size);
-	return (total_read == requested_bytes) ? 0 : -1;
-}
-
 int epcm_read(struct epcm *epcm, void *data, unsigned int count)
 {
-	return epcm->ram_size
-	       ? read_from_queue(epcm, data, count)
+	struct queue *q = &epcm->q;
+	return q->ram_size
+	       ? queue_read(q, data, count)
 	       : pcm_read(epcm->pcm, data, count);
 }
 
@@ -202,19 +137,19 @@ int epcm_close(struct epcm *epcm)
 {
 	KLOGD("%s() enter\n", __FUNCTION__);
 	if (epcm) {
-		if (epcm->ram_size) {
+		struct queue *q = &epcm->q;
+		if (q->ram_size) {
 			epcm->stop = 1;
-			pthread_mutex_lock(&epcm->mutex_for_w_pos);
-			pthread_cond_signal(&epcm->cond);
-			pthread_mutex_unlock(&epcm->mutex_for_w_pos);
+			pthread_mutex_lock(&q->mutex_for_w_pos);
+			pthread_cond_signal(&q->cond);
+			pthread_mutex_unlock(&q->mutex_for_w_pos);
 			pthread_join(epcm->tid, NULL);
-			// td_dump_to_file(epcm); // flush the remaining data in the ram
 
-			pthread_cond_destroy(&epcm->cond);
-			pthread_mutex_destroy(&epcm->mutex_for_w_pos);
-			free(epcm->ram);
-			epcm->ram = NULL;
-			epcm->ram_size = 0;
+			pthread_cond_destroy(&q->cond);
+			pthread_mutex_destroy(&q->mutex_for_w_pos);
+			free(q->ram);
+			q->ram = NULL;
+			q->ram_size = 0;
 		} else {
 			/* bypass mode */
 		}

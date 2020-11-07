@@ -29,16 +29,16 @@ extern "C" {
 
 struct epcm;
 struct epcm_config {
-        unsigned int ram_millisec;
+	unsigned int ram_millisecs;
 };
 
 struct epcm *epcm_open(unsigned int card,
-                      unsigned int device,
-                      unsigned int flags,
-                      const struct pcm_config *config,
-                      const struct epcm_config *econfig);
+                       unsigned int device,
+                       unsigned int flags,
+                       const struct pcm_config *config,
+                       const struct epcm_config *econfig);
 
-struct pcm* epcm_base(struct epcm *epcm);
+struct pcm *epcm_base(struct epcm *epcm);
 
 int epcm_read(struct epcm *epcm, void *data, unsigned int count);
 
