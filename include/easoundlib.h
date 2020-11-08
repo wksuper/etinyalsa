@@ -42,6 +42,10 @@ struct pcm *epcm_base(struct epcm *epcm);
 
 int epcm_read(struct epcm *epcm, void *data, unsigned int count);
 
+int epcm_write(struct epcm *epcm, const void *data, unsigned int count);
+
+int epcm_drain(struct epcm *epcm);
+
 int epcm_close(struct epcm *epcm);
 
 #if defined(__cplusplus)

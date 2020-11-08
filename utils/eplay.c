@@ -78,42 +78,33 @@ int main(int argc, char *argv[])
 	size_t extended_buffer_ms = 0;
 	char c = -1;
 	char *buf = NULL;
-	size_t read_size = 0;
-	size_t read_frames = 0;
+	size_t buf_size = 0;
+	size_t buf_frames = 0;
 	size_t total_frames = 0;
 
 	KLOG_SET_OPTIONS(KLOGGING_TO_STDOUT);
 	KLOG_SET_LEVEL(KLOGGING_LEVEL_VERBOSE);
 
-	KCONSOLE("ecap version: %s\n", VERSION);
+	KCONSOLE("eplay version: %s\n", VERSION);
 	KCONSOLE("klogging version: %s\n", KVERSION());
 
 	if (argc < 2) {
-		KCONSOLE("Usage: ecap {file.wav} [-D card] [-d device] [-c channels] "
-		         "[-r rate] [-b bits] [-p period_size] [-n n_periods] "
+		KCONSOLE("Usage: ecap {file.wav} [-D card] [-d device] "
+		         "[-p period_size] [-n n_periods] "
 		         "[-e extended_buffer_ms]\n");
 		goto error;
 	}
 
-	file = fopen(argv[1], "wb");
+	file = fopen(argv[1], "rb");
 	if (!file) {
 		KLOGE("Unable to open %s\n", argv[1]);
 		goto error;
 	}
 
-	while ((c = getopt(argc, argv, "D:d:c:r:b:p:n:e:")) != -1) {
+	while ((c = getopt(argc, argv, "D:d:p:n:e:")) != -1) {
 		switch (c) {
 		case 'd':
 			device = atoi(optarg);
-			break;
-		case 'c':
-			channels = atoi(optarg);
-			break;
-		case 'r':
-			rate = atoi(optarg);
-			break;
-		case 'b':
-			bits = atoi(optarg);
 			break;
 		case 'D':
 			card = atoi(optarg);
@@ -133,15 +124,17 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	header.riff_id = ID_RIFF;
-	header.riff_sz = 0;
-	header.riff_fmt = ID_WAVE;
-	header.fmt_id = ID_FMT;
-	header.fmt_sz = 16;
-	header.audio_format = FORMAT_PCM;
-	header.num_channels = channels;
-	header.sample_rate = rate;
-	switch (bits) {
+	if (fread(&header, sizeof(header), 1, file) != 1) {
+		KLOGE("Unable to read riff/wave header\n");
+		goto error;
+	}
+	if ((header.riff_id != ID_RIFF) ||
+	    (header.riff_fmt != ID_WAVE)) {
+		KLOGE("Not a riff/wave header\n");
+		goto error;
+	}
+
+	switch (header.bits_per_sample) {
 	case 32:
 		format = PCM_FORMAT_S32_LE;
 		break;
@@ -155,14 +148,9 @@ int main(int argc, char *argv[])
 		KCONSOLE("%u bits is not supported\n", bits);
 		goto error;
 	}
-	header.bits_per_sample = pcm_format_to_bits(format);
-	header.byte_rate = (header.bits_per_sample / 8) * channels * rate;
-	header.block_align = channels * (header.bits_per_sample / 8);
-	header.data_id = ID_DATA;
-
 	memset(&config, 0, sizeof(config));
-	config.channels = channels;
-	config.rate = rate;
+	config.channels = header.num_channels;
+	config.rate = header.sample_rate;
 	config.period_size = period_size;
 	config.period_count = period_count;
 	config.format = format;
@@ -177,34 +165,32 @@ int main(int argc, char *argv[])
 
 	signal(SIGINT, sigint_handler);
 
-	epcm = epcm_open(card, device, PCM_IN, &config, &econfig);
+	epcm = epcm_open(card, device, PCM_OUT, &config, &econfig);
 	if (!epcm) {
 		KLOGE("Unable to epcm_open()\n");
 		goto error;
 	}
 	pcm = epcm_base(epcm);
 
-	read_frames = pcm_get_buffer_size(pcm);
-	read_size = pcm_frames_to_bytes(pcm, read_frames);
-	buf = malloc(read_size);
+	buf_frames = pcm_get_buffer_size(pcm);
+	buf_size = pcm_frames_to_bytes(pcm, buf_frames);
+	buf = malloc(buf_size);
 	if (!buf) {
-		KLOGE("Failed to malloc(%d bytes)\n", read_size);
+		KLOGE("Failed to malloc(%d bytes)\n", buf_size);
 		goto error;
 	}
 	total_frames = 0;
 	while (!g_quit) {
-		if (epcm_read(epcm, buf, read_size) == 0) {
-			fwrite(buf, read_size, 1, file);
-			total_frames += read_frames;
+		if (fread(buf, buf_size, 1, file) != 1) {
+			epcm_drain(epcm);
+			break;
+		}
+		if (epcm_write(epcm, buf, buf_size) == 0) {
+			total_frames += buf_frames;
 		} else {
-			KLOGE("Error to read %u bytes\n", read_size);
+			KLOGE("Error to write %u bytes\n", buf_size);
 		}
 	}
-
-	header.data_sz = total_frames * header.block_align;
-	header.riff_sz = header.data_sz + sizeof(header) - 8;
-	fseek(file, 0, SEEK_SET);
-	fwrite(&header, sizeof(struct wav_header), 1, file);
 
 	ret = EXIT_SUCCESS;
 
