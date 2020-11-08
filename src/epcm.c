@@ -73,13 +73,12 @@ struct epcm *epcm_open(unsigned int card,
 
 	struct queue *q = NULL;
 	struct epcm *epcm = (struct epcm *)calloc(1, sizeof(struct epcm));
-	if (!epcm)
+	if (!epcm) {
+		KLOGE("Failed to alloc struct epcm\n");
 		goto error;
+	}
 
 	epcm->pcm = pcm_open(card, device, flags, config);
-	if (!epcm->pcm)
-		goto error;
-
 	if (!epcm->pcm) {
 		KLOGE("Unable to open PCM device\n");
 		goto error;
