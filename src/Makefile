@@ -5,7 +5,7 @@ LD = $(CROSS_COMPILE)gcc
 AR = $(CROSS_COMPILE)ar
 CFLAGS += -I../include -I../prebuilt/include -fPIC -O2 -DVERSION=\"$(VERSION)\"
 
-OBJECTS = epcm.o queue.o
+OBJECTS = epcm.o queue.o resampler.o
 SHARED_LIB_TARGET = libetinyalsa.so
 STATIC_LIB_TARGET = libetinyalsa.a
 

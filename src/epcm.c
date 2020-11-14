@@ -24,7 +24,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <assert.h>
 #include "queue.h"
+#include "resampler.h"
 
 enum epcm_direction {
 	EPCM_OUT = 0,
@@ -39,6 +41,7 @@ struct epcm {
 	struct queue q;
 	pthread_t tid;
 	int stop;
+	struct resampler *rs;
 };
 
 struct pcm *epcm_base(struct epcm *epcm)
@@ -138,6 +141,9 @@ struct epcm *epcm_open(unsigned int card,
 
 			pthread_mutex_init(&q->mutex_for_hw_pos, (const pthread_mutexattr_t *)NULL);
 			pthread_cond_init(&q->cond, (const pthread_condattr_t *)NULL);
+
+			if (econfig->tuner && config->format == PCM_FORMAT_S16_LE)
+				epcm->rs = rs_open(config->channels, config->rate, config->rate);
 		}
 	} else {
 		q->ram = NULL;
@@ -161,13 +167,55 @@ int epcm_read(struct epcm *epcm, void *data, unsigned int count)
 		if (!epcm->tid) {
 			int ret;
 
-			if (ret = pthread_create(&epcm->tid, NULL, pcm_streaming_thread, epcm)) {
+			ret = pthread_create(&epcm->tid, NULL, pcm_streaming_thread, epcm);
+			if (ret != 0) {
 				KLOGE("Failed to create pcm_streaming_thread\n");
 				return ret;
 			}
 		}
 
-		return queue_appl_read(q, data, count);
+		int ret = -1;
+		struct pcm *pcm = epcm->pcm;
+		const unsigned int rate = pcm_get_rate(pcm);
+		const size_t tuning_threshold_too_low = q->ram_size * 1 / 5;
+		const size_t tuning_threshold_low = q->ram_size * 2 / 5;
+		const size_t tuning_threshold_high = q->ram_size * 3 / 5;
+		const size_t tuning_threshold_too_high = q->ram_size * 4 / 5;
+		size_t avail = queue_get_data_size_l(q);
+		size_t newcount = count;
+
+		if (epcm->rs) {
+			if (avail < tuning_threshold_too_low) {
+				KLOGV("tuner: Buffer data is too less now, further slowing down the reading\n");
+				newcount = count * 29 / 32;
+				rs_adjust(epcm->rs, rate, rate * 29 / 32);
+			} else if (tuning_threshold_too_low <= avail && avail < tuning_threshold_low) {
+				KLOGV("Buffer data is less now, slowing down the reading\n");
+				newcount = count * 31 / 32;
+				rs_adjust(epcm->rs, rate, rate * 31 / 32);
+			} else if (tuning_threshold_low <= avail && avail < tuning_threshold_high) {
+				KLOGV("tuner: Normal threshold\n");
+				newcount = count;
+				rs_adjust(epcm->rs, rate, rate);
+			} else if (tuning_threshold_high <= avail && avail < tuning_threshold_too_high) {
+				KLOGV("tuner: Buffer data is more now, speeding up the reading\n");
+				newcount = count * 33 / 32;
+				rs_adjust(epcm->rs, rate, rate * 33 / 32);
+			} else if (tuning_threshold_too_high <= avail) {
+				KLOGV("tuner: Buffer data is much more now, further speeding up the reading\n");
+				newcount = count * 35 / 32;
+				rs_adjust(epcm->rs, rate, rate * 35 / 32);
+			}
+			static char tmp[10 * 1024 * 1024];
+			assert(newcount <= sizeof(tmp));
+			ret = queue_appl_read(q, tmp, newcount);
+			rs_process(epcm->rs, data, pcm_bytes_to_frames(pcm, count),
+					tmp, pcm_bytes_to_frames(pcm, newcount));
+		} else {
+			ret = queue_appl_read(q, data, count);
+		}
+
+		return ret;
 	} else {
 		return pcm_read(epcm->pcm, data, count);
 	}
@@ -246,6 +294,9 @@ int epcm_close(struct epcm *epcm)
 			pcm_close(epcm->pcm);
 			epcm->pcm = NULL;
 		}
+
+		rs_close(epcm->rs);
+		epcm->rs = NULL;
 
 		free(epcm);
 		epcm = NULL;

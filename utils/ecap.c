@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
 	unsigned int period_count = 4;
 	enum pcm_format format = PCM_FORMAT_S16_LE;
 	size_t extended_buffer_ms = 0;
+
 	char c = -1;
 	char *buf = NULL;
 	size_t read_size = 0;
@@ -68,7 +69,7 @@ int main(int argc, char *argv[])
 	if (argc < 2) {
 		KCONSOLE("Usage: ecap {file.wav} [-D card] [-d device] [-c channels] "
 		         "[-r rate] [-b bits] [-p period_size] [-n n_periods] "
-		         "[-e extended_buffer_ms]\n");
+		         "[-e extended_buffer_ms] [-t tuner]\n");
 		goto error;
 	}
 
@@ -149,6 +150,7 @@ int main(int argc, char *argv[])
 
 	memset(&econfig, 0, sizeof(econfig));
 	econfig.ram_millisecs = extended_buffer_ms;
+	econfig.tuner = 0;
 
 	fseek(file, sizeof(struct wav_header), SEEK_SET);
 
