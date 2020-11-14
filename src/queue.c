@@ -106,10 +106,10 @@ int queue_appl_read(struct queue *q, char *buf, size_t bytes)
 		pthread_mutex_lock(&q->mutex_for_hw_pos);
 		if (q->xrun) {
 			/* Now, q->appl_pos == q->hw_pos,
-			* q->data_size == q->ram_size
-			* Reset the xrun, and need user to call
-			* next queue_appl_read() immediately
-			*/
+			 * q->data_size == q->ram_size
+			 * Reset the xrun, and need user to call
+			 * next queue_appl_read() immediately
+			 */
 			q->xrun = 0;
 		} else {
 			q->appl_pos = appl_pos;
@@ -159,10 +159,10 @@ int queue_appl_write(struct queue *q, const char *buf, size_t bytes)
 		pthread_mutex_lock(&q->mutex_for_hw_pos);
 		if (q->xrun) {
 			/* now, q->appl_pos == q->hw_pos,
-			* q->data_size == 0
-			* Reset the xrun, and need user to call
-			* next queue_appl_write() immediately
-			*/
+			 * q->data_size == 0
+			 * Reset the xrun, and need user to call
+			 * next queue_appl_write() immediately
+			 */
 			q->xrun = 0;
 
 		} else {

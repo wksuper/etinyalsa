@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 	if (argc < 2) {
 		KCONSOLE("Usage: ecap {file.wav} [-D card] [-d device] [-c channels] "
 		         "[-r rate] [-b bits] [-p period_size] [-n n_periods] "
-		         "[-e extended_buffer_ms] [-t tuner]\n");
+		         "[-e extended_buffer_ms]\n");
 		goto error;
 	}
 

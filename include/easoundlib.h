@@ -30,7 +30,7 @@ extern "C" {
 struct epcm;
 struct epcm_config {
 	unsigned int ram_millisecs;
-        int tuner;
+	int tuner;
 };
 
 struct epcm *epcm_open(unsigned int card,

@@ -31,8 +31,8 @@ struct resampler {
 	size_t chnum;
 	size_t in_rate;
 	size_t out_rate;
-        void (*process_s16)(struct resampler *rs, int16_t *dst, size_t dst_frames,
-                         const int16_t *src, size_t src_frames);
+	void (*process_s16)(struct resampler *rs, int16_t *dst, size_t dst_frames,
+	                    const int16_t *src, size_t src_frames);
 
 	int16_t old_sample[MAX_CHNUM];
 	unsigned int pitch;
@@ -76,7 +76,7 @@ static void upsample_s16(struct resampler *rs, int16_t *dst, size_t dst_frames,
 }
 
 static void downsample_s16(struct resampler *rs, int16_t *dst, size_t dst_frames,
-                         const int16_t *src, size_t src_frames)
+                           const int16_t *src, size_t src_frames)
 {
 	size_t ch;
 
@@ -121,9 +121,9 @@ int rs_adjust(struct resampler *rs, size_t out_rate, size_t in_rate)
 			++rs->pitch_shift;
 	}
 
-        rs->in_rate = in_rate;
-        rs->out_rate = out_rate;
-        rs->process_s16 = (in_rate < out_rate) ? upsample_s16 : downsample_s16;
+	rs->in_rate = in_rate;
+	rs->out_rate = out_rate;
+	rs->process_s16 = (in_rate < out_rate) ? upsample_s16 : downsample_s16;
 
 	return 0;
 }
@@ -133,16 +133,16 @@ struct resampler *rs_open(size_t chnum, size_t out_rate, size_t in_rate)
 	struct resampler *rs = calloc(1, sizeof(struct resampler));
 	if (!rs)
 		return NULL;
-        if (chnum > MAX_CHNUM) {
-                goto error;
-        }
+	if (chnum > MAX_CHNUM) {
+		goto error;
+	}
 	rs->chnum = chnum;
 	rs_adjust(rs, out_rate, in_rate);
 
-        return rs;
+	return rs;
 
 error:
-        rs_close(rs);
+	rs_close(rs);
 	return NULL;
 }
 
