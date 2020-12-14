@@ -61,22 +61,23 @@ int main(int argc, char *argv[])
 	size_t read_frames = 0;
 	size_t total_frames = 0;
 
-	KLOG_SET_OPTIONS(KLOGGING_TO_STDOUT);
+	KLOG_SET_OPTIONS(KLOGGING_TO_STDOUT | KLOGGING_FLUSH_IMMEDIATELY | KLOGGING_NO_SOURCEFILE);
 	KLOG_SET_LEVEL(KLOGGING_LEVEL_VERBOSE);
+	KLOG_SET(argc, argv);
 
-	KCONSOLE("ecap version: %s\n", VERSION);
-	KCONSOLE("klogging version: %s\n", KVERSION());
+	KCONSOLE("ecap version: %s", VERSION);
+	KCONSOLE("klogging version: %s", KVERSION());
 
 	if (argc < 2) {
 		KCONSOLE("Usage: ecap {file.wav} [-D card] [-d device] [-c channels] "
 		         "[-r rate] [-b bits] [-p period_size] [-n n_periods] "
-		         "[-e extended_buffer_ms]\n");
+		         "[-e extended_buffer_ms]");
 		goto error;
 	}
 
 	file = fopen(argv[1], "wb");
 	if (!file) {
-		KLOGE("Unable to open %s\n", argv[1]);
+		KLOGE("Unable to open %s", argv[1]);
 		goto error;
 	}
 
@@ -107,7 +108,7 @@ int main(int argc, char *argv[])
 			extended_buffer_ms = atoi(optarg);
 			break;
 		case '?':
-			KLOGE("Unknown option: %c\n", c);
+			KLOGE("Unknown option: %c", c);
 			goto error;
 		}
 	}
@@ -131,7 +132,7 @@ int main(int argc, char *argv[])
 		format = PCM_FORMAT_S16_LE;
 		break;
 	default:
-		KLOGE("%u bits is not supported\n", bits);
+		KLOGE("%u bits is not supported", bits);
 		goto error;
 	}
 	header.bits_per_sample = pcm_format_to_bits(format);
@@ -159,7 +160,7 @@ int main(int argc, char *argv[])
 
 	epcm = epcm_open(card, device, PCM_IN, &config, &econfig);
 	if (!epcm) {
-		KLOGE("Unable to epcm_open()\n");
+		KLOGE("Unable to epcm_open()");
 		goto error;
 	}
 	pcm = epcm_base(epcm);
@@ -168,7 +169,7 @@ int main(int argc, char *argv[])
 	read_size = pcm_frames_to_bytes(pcm, read_frames);
 	buf = malloc(read_size);
 	if (!buf) {
-		KLOGE("Failed to malloc(%d bytes)\n", read_size);
+		KLOGE("Failed to malloc(%d bytes)", read_size);
 		goto error;
 	}
 	total_frames = 0;
@@ -177,7 +178,7 @@ int main(int argc, char *argv[])
 			fwrite(buf, read_size, 1, file);
 			total_frames += read_frames;
 		} else {
-			KLOGE("Error to read %u bytes\n", read_size);
+			KLOGE("Error to read %u bytes", read_size);
 		}
 	}
 

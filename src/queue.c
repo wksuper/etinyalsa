@@ -61,7 +61,7 @@ int queue_hw_write(struct queue *q, const char *buf, size_t bytes)
 		q->data_size += bytes;
 	}
 	q->hw_pos = w;
-	KLOGV("queue:  +%7u bytes  [%10u / %10u] %3u%% %s\n",
+	KLOGV("queue:  +%7u bytes  [%10u / %10u] %3u%% %s",
 	      bytes, q->data_size, q->ram_size, q->data_size * 100 / q->ram_size,
 	      q->xrun ? "overrun" : "");
 
@@ -115,7 +115,7 @@ int queue_appl_read(struct queue *q, char *buf, size_t bytes)
 			q->appl_pos = appl_pos;
 			q->data_size -= actual_read;
 		}
-		KLOGV("queue:  -%7u bytes  [%10u / %10u] %3u%% %s\n",
+		KLOGV("queue:  -%7u bytes  [%10u / %10u] %3u%% %s",
 		      bytes, q->data_size, q->ram_size, q->data_size * 100 / q->ram_size,
 		      q->xrun ? "overrun" : "");
 		pthread_mutex_unlock(&q->mutex_for_hw_pos);
@@ -169,7 +169,7 @@ int queue_appl_write(struct queue *q, const char *buf, size_t bytes)
 			q->appl_pos = appl_pos;
 			q->data_size += actual_write;
 		}
-		KLOGV("queue:  +%7u bytes  [%10u / %10u] %3u%%\n",
+		KLOGV("queue:  +%7u bytes  [%10u / %10u] %3u%%",
 		      bytes, q->data_size, q->ram_size, q->data_size * 100 / q->ram_size);
 		pthread_mutex_unlock(&q->mutex_for_hw_pos);
 	}
@@ -207,7 +207,7 @@ int queue_hw_read(struct queue *q, char *buf, size_t bytes)
 		q->data_size -= bytes;
 	}
 	q->hw_pos = r;
-	KLOGV("queue:  -%7u bytes  [%10u / %10u] %3u%% %s\n",
+	KLOGV("queue:  -%7u bytes  [%10u / %10u] %3u%% %s",
 	      bytes, q->data_size, q->ram_size, q->data_size * 100 / q->ram_size,
 	      q->xrun ? "underrun" : "");
 

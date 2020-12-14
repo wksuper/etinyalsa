@@ -56,22 +56,23 @@ int main(int argc, char *argv[])
 	size_t buf_frames = 0;
 	size_t total_frames = 0;
 
-	KLOG_SET_OPTIONS(KLOGGING_TO_STDOUT);
+	KLOG_SET_OPTIONS(KLOGGING_TO_STDOUT | KLOGGING_FLUSH_IMMEDIATELY | KLOGGING_NO_SOURCEFILE);
 	KLOG_SET_LEVEL(KLOGGING_LEVEL_VERBOSE);
+	KLOG_SET(argc, argv);
 
-	KCONSOLE("eplay version: %s\n", VERSION);
-	KCONSOLE("klogging version: %s\n", KVERSION());
+	KCONSOLE("eplay version: %s", VERSION);
+	KCONSOLE("klogging version: %s", KVERSION());
 
 	if (argc < 2) {
 		KCONSOLE("Usage: eplay {file.wav} [-D card] [-d device] "
 		         "[-p period_size] [-n n_periods] "
-		         "[-e extended_buffer_ms]\n");
+		         "[-e extended_buffer_ms]");
 		goto error;
 	}
 
 	file = fopen(argv[1], "rb");
 	if (!file) {
-		KLOGE("Unable to open %s\n", argv[1]);
+		KLOGE("Unable to open %s", argv[1]);
 		goto error;
 	}
 
@@ -93,18 +94,18 @@ int main(int argc, char *argv[])
 			extended_buffer_ms = atoi(optarg);
 			break;
 		case '?':
-			KLOGE("Unknown option: %c\n", c);
+			KLOGE("Unknown option: %c", c);
 			goto error;
 		}
 	}
 
 	if (fread(&header, sizeof(header), 1, file) != 1) {
-		KLOGE("Unable to read riff/wave header\n");
+		KLOGE("Unable to read riff/wave header");
 		goto error;
 	}
 	if ((header.riff_id != ID_RIFF) ||
 	    (header.riff_fmt != ID_WAVE)) {
-		KLOGE("Not a riff/wave header\n");
+		KLOGE("Not a riff/wave header");
 		goto error;
 	}
 
@@ -119,7 +120,7 @@ int main(int argc, char *argv[])
 		format = PCM_FORMAT_S16_LE;
 		break;
 	default:
-		KLOGE("%u bits is not supported\n", header.bits_per_sample);
+		KLOGE("%u bits is not supported", header.bits_per_sample);
 		goto error;
 	}
 	memset(&config, 0, sizeof(config));
@@ -141,7 +142,7 @@ int main(int argc, char *argv[])
 
 	epcm = epcm_open(card, device, PCM_OUT, &config, &econfig);
 	if (!epcm) {
-		KLOGE("Unable to epcm_open()\n");
+		KLOGE("Unable to epcm_open()");
 		goto error;
 	}
 	pcm = epcm_base(epcm);
@@ -150,7 +151,7 @@ int main(int argc, char *argv[])
 	buf_size = pcm_frames_to_bytes(pcm, buf_frames);
 	buf = malloc(buf_size);
 	if (!buf) {
-		KLOGE("Failed to malloc(%d bytes)\n", buf_size);
+		KLOGE("Failed to malloc(%d bytes)", buf_size);
 		goto error;
 	}
 	total_frames = 0;
@@ -162,7 +163,7 @@ int main(int argc, char *argv[])
 		if (epcm_write(epcm, buf, buf_size) == 0) {
 			total_frames += buf_frames;
 		} else {
-			KLOGE("Error to write %u bytes\n", buf_size);
+			KLOGE("Error to write %u bytes", buf_size);
 		}
 	}
 

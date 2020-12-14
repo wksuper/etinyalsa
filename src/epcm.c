@@ -52,7 +52,7 @@ struct pcm *epcm_base(struct epcm *epcm)
 
 static void *pcm_streaming_thread(void *data)
 {
-	KLOGD("%s() enter\n", __FUNCTION__);
+	KLOGD("%s() enter", __FUNCTION__);
 
 	struct epcm *epcm = (struct epcm *)data;
 	struct pcm *pcm = epcm->pcm;
@@ -60,34 +60,34 @@ static void *pcm_streaming_thread(void *data)
 	char *buf = (char *)malloc(bytes);
 
 	if (!buf) {
-		KLOGE("Failed to alloc %u bytes\n", bytes);
+		KLOGE("Failed to alloc %u bytes", bytes);
 		goto error;
 	}
 
 	while (!epcm->stop) {
 		if (epcm->dir == EPCM_IN) {
 			if (pcm_read(pcm, buf, bytes) != 0) {
-				KLOGE("Error to pcm_read(%u bytes)\n", bytes);
+				KLOGE("Error to pcm_read(%u bytes)", bytes);
 				continue;
 			}
 			if (queue_hw_write(&epcm->q, buf, bytes) != 0) {
-				KLOGE("Error to queue_hw_write(%u bytes)\n", bytes);
+				KLOGE("Error to queue_hw_write(%u bytes)", bytes);
 			}
 		} else {
 			if (queue_hw_read(&epcm->q, buf, bytes) != 0) {
-				KLOGE("Error to queue_hw_read(%u bytes)\n", bytes);
+				KLOGE("Error to queue_hw_read(%u bytes)", bytes);
 				continue;
 			}
 
 			if (pcm_write(pcm, buf, bytes) != 0) {
-				KLOGE("Error to pcm_write(%u bytes)\n", bytes);
+				KLOGE("Error to pcm_write(%u bytes)", bytes);
 			}
 		}
 	}
 
 error:
 	free(buf);
-	KLOGD("%s() leave\n", __FUNCTION__);
+	KLOGD("%s() leave", __FUNCTION__);
 	return NULL;
 }
 
@@ -97,22 +97,22 @@ struct epcm *epcm_open(unsigned int card,
                        const struct pcm_config *config,
                        const struct epcm_config *econfig)
 {
-	KLOGD("%s() enter\n", __FUNCTION__);
+	KLOGD("%s() enter", __FUNCTION__);
 
 	struct queue *q = NULL;
 	struct epcm *epcm = (struct epcm *)calloc(1, sizeof(struct epcm));
 	if (!epcm) {
-		KLOGE("Failed to alloc struct epcm\n");
+		KLOGE("Failed to alloc struct epcm");
 		goto error;
 	}
 
 	epcm->pcm = pcm_open(card, device, flags, config);
 	if (!epcm->pcm) {
-		KLOGE("Unable to open PCM device\n");
+		KLOGE("Unable to open PCM device");
 		goto error;
 	}
 	if (!pcm_is_ready(epcm->pcm)) {
-		KLOGE("Unable to open PCM device (%s)\n", pcm_get_error(epcm->pcm));
+		KLOGE("Unable to open PCM device (%s)", pcm_get_error(epcm->pcm));
 		goto error;
 	}
 
@@ -124,14 +124,14 @@ struct epcm *epcm_open(unsigned int card,
 		size_t ram_frames = (uint64_t)pcm_get_rate(epcm->pcm)
 		                    * (uint64_t)econfig->ram_millisecs / (uint64_t)1000;
 		if (ram_frames < pcm_get_buffer_size(epcm->pcm) * 3) {
-			KLOGE("Too small RAM size\n");
+			KLOGE("Too small RAM size");
 			goto error;
 		}
 		q->ram_size = pcm_frames_to_bytes(epcm->pcm, ram_frames);
-		KLOGD("ram_size=%u\n", q->ram_size);
+		KLOGD("ram_size=%u", q->ram_size);
 		q->ram = (char *)malloc(q->ram_size);
 		if (!q->ram) {
-			KLOGE("Failed to alloc memory\n");
+			KLOGE("Failed to alloc memory");
 			q->ram_size = 0;
 		} else {
 			q->hw_pos = q->appl_pos = 0;
@@ -151,12 +151,12 @@ struct epcm *epcm_open(unsigned int card,
 		q->ram_size = 0;
 	}
 
-	KLOGD("%s() leave\n", __FUNCTION__);
+	KLOGD("%s() leave", __FUNCTION__);
 	return epcm;
 
 error:
 	epcm_close(epcm);
-	KLOGD("%s() leave\n", __FUNCTION__);
+	KLOGD("%s() leave", __FUNCTION__);
 	return NULL;
 }
 
@@ -170,7 +170,7 @@ int epcm_read(struct epcm *epcm, void *data, unsigned int count)
 
 			ret = pthread_create(&epcm->tid, NULL, pcm_streaming_thread, epcm);
 			if (ret != 0) {
-				KLOGE("Failed to create pcm_streaming_thread\n");
+				KLOGE("Failed to create pcm_streaming_thread");
 				return ret;
 			}
 		}
@@ -187,23 +187,23 @@ int epcm_read(struct epcm *epcm, void *data, unsigned int count)
 
 		if (epcm->rs) {
 			if (avail < tuning_threshold_too_low) {
-				KLOGV("tuner: Buffer data is too less now, further slowing down the reading\n");
+				KLOGV("tuner: Buffer data is too less now, further slowing down the reading");
 				newcount = count * 29 / 32;
 				rs_adjust(epcm->rs, rate, rate * 29 / 32);
 			} else if (tuning_threshold_too_low <= avail && avail < tuning_threshold_low) {
-				KLOGV("Buffer data is less now, slowing down the reading\n");
+				KLOGV("Buffer data is less now, slowing down the reading");
 				newcount = count * 31 / 32;
 				rs_adjust(epcm->rs, rate, rate * 31 / 32);
 			} else if (tuning_threshold_low <= avail && avail < tuning_threshold_high) {
-				KLOGV("tuner: Normal threshold\n");
+				KLOGV("tuner: Normal threshold");
 				newcount = count;
 				rs_adjust(epcm->rs, rate, rate);
 			} else if (tuning_threshold_high <= avail && avail < tuning_threshold_too_high) {
-				KLOGV("tuner: Buffer data is more now, speeding up the reading\n");
+				KLOGV("tuner: Buffer data is more now, speeding up the reading");
 				newcount = count * 33 / 32;
 				rs_adjust(epcm->rs, rate, rate * 33 / 32);
 			} else if (tuning_threshold_too_high <= avail) {
-				KLOGV("tuner: Buffer data is much more now, further speeding up the reading\n");
+				KLOGV("tuner: Buffer data is much more now, further speeding up the reading");
 				newcount = count * 35 / 32;
 				rs_adjust(epcm->rs, rate, rate * 35 / 32);
 			}
@@ -239,7 +239,7 @@ int epcm_write(struct epcm *epcm, const void *data, unsigned int count)
 		    2 * pcm_get_buffer_size(epcm->pcm)) {
 			int ret;
 			if (ret = pthread_create(&epcm->tid, NULL, pcm_streaming_thread, epcm)) {
-				KLOGE("Failed to create pcm_streaming_thread\n");
+				KLOGE("Failed to create pcm_streaming_thread");
 				return ret;
 			}
 		}
@@ -259,12 +259,12 @@ int epcm_drain(struct epcm *epcm)
 		size_t data_size;
 
 		while ((data_size = queue_get_data_size_l(q)) > 0) {
-			KLOGV("epcm: Draining... (data_size=%u)\n", data_size);
+			KLOGV("epcm: Draining... (data_size=%u)", data_size);
 			/* sleep 1 period time */
 			usleep((uint64_t)config->period_size
 			       * (uint64_t)1000000 / (uint64_t)config->rate);
 		}
-		KLOGD("epcm: Drained\n");
+		KLOGD("epcm: Drained");
 	}
 
 	return 0;
@@ -272,7 +272,7 @@ int epcm_drain(struct epcm *epcm)
 
 int epcm_close(struct epcm *epcm)
 {
-	KLOGD("%s() enter\n", __FUNCTION__);
+	KLOGD("%s() enter", __FUNCTION__);
 	if (epcm) {
 		struct queue *q = &epcm->q;
 		if (q->ram_size) {
@@ -302,7 +302,7 @@ int epcm_close(struct epcm *epcm)
 		free(epcm);
 		epcm = NULL;
 	}
-	KLOGD("%s() leave\n", __FUNCTION__);
+	KLOGD("%s() leave", __FUNCTION__);
 
 	return 0;
 }
