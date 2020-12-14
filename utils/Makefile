@@ -16,11 +16,11 @@ CFLAGS += -I../include -I../prebuilt/include -fPIC -O2 -DVERSION=\"$(VERSION)\"
 .PHONY: all
 all: $(TARGET_ECAP) $(TARGET_EPLAY)
 
-$(TARGET_ECAP): $(OBJECTS_ECAP) ../src/libetinyalsa.a ../prebuilt/lib/libklogging.a
-	$(LD) $^ -lstdc++ -lpthread -ltinyalsa -ldl -o $@
+$(TARGET_ECAP): $(OBJECTS_ECAP) ../src/libetinyalsa.a ../prebuilt/lib/libklogging.a ../prebuilt/lib/libtinyalsa.a
+	$(LD) $^ -lstdc++ -lpthread -ldl -o $@
 
-$(TARGET_EPLAY): $(OBJECTS_EPLAY) ../src/libetinyalsa.a ../prebuilt/lib/libklogging.a
-	$(LD) $^ -lstdc++ -lpthread -ltinyalsa -ldl -o $@
+$(TARGET_EPLAY): $(OBJECTS_EPLAY) ../src/libetinyalsa.a ../prebuilt/lib/libklogging.a ../prebuilt/lib/libtinyalsa.a
+	$(LD) $^ -lstdc++ -lpthread -ldl -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<
