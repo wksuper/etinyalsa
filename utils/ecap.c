@@ -20,6 +20,7 @@
 
 #include <easoundlib.h>
 #include <klogging.h>
+#include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
